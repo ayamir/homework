@@ -11,6 +11,7 @@ from selenium.common.exceptions import NoSuchElementException
 url = "https://service.account.weibo.com/index?type=5&status=4&page=1"
 
 delay = 10
+page_num = 10
 
 
 def wait_for_loaded(driver, delay, xpath):
@@ -47,7 +48,7 @@ def get_info(driver):
                 driver.back()
         else:
             original_text = driver.find_element_by_xpath(
-                original_text_xpath).text
+                publish_content_without_original_xpath).text
         return original_text, publish_time
 
 
@@ -65,7 +66,7 @@ prefs = {
 chrome_options.add_experimental_option("prefs", prefs)
 wb = webdriver.Chrome(options=chrome_options)
 wb.maximize_window()
-wb.get("https://service.account.weibo.com/index?type=5&status=4&page=1")
+wb.get(url)
 wb.implicitly_wait(3)
 
 
@@ -87,13 +88,39 @@ time.sleep(delay)
 wb.get(url)
 wb.implicitly_wait(3)
 
-for i in range(2, 22):
-    wb.implicitly_wait(3)
-    info_link = wb.find_element_by_xpath(
-        info_link_xpath %
-        i).get_attribute('href')
-    wb.get(info_link)
-    info_content, info_time = get_info(wb)
-    print(info_content, info_time)
-    wb.implicitly_wait(3)
-    wb.back()
+info_list = []
+
+cnt, page = 1, 1
+while True:
+    if page != 7:
+        page += 1
+    for i in range(2, 22):
+        info_dict = dict()
+        wb.implicitly_wait(3)
+        info_dict['reportor'] = wb.find_element_by_xpath(
+            reportor_xpath %
+            i).text
+        info_dict['reportee'] = wb.find_element_by_xpath(
+            reportee_xpath %
+            i).text
+        info_link = wb.find_element_by_xpath(
+            info_link_xpath %
+            i).get_attribute('href')
+        wb.get(info_link)
+        content, time = get_info(wb)
+        info_dict['content'] = content
+        info_dict['time'] = time
+        info_list.append(info_dict)
+        wb.implicitly_wait(3)
+        wb.back()
+    wb.find_element_by_xpath(page_button_xpath % page).click()
+    cnt += 1
+    if cnt == page_num:
+        break
+
+# for info_dict in range(len(info_list)):
+#     print("reportor: " + info_dict['reportor'])
+#     print("reportee: " + info_dict['reportee'])
+#     print("content: " + info_dict['content'])
+#     print("time: " + info_dict['time'])
+#     print()

@@ -2,8 +2,10 @@ login_button_xpath = '//*[@id="pl_login_form"]/div/div[3]/div[6]/a'
 dm_check_xpath = '//*[@id="dmCheck"]'
 dm_send_button_xpath = '//*[@id="send_dm_btn"]'
 
+page_button_xpath = '//*[@id="pl_service_showcomplaint"]/div[2]/div[2]/a[%s]'
+
 info_link_xpath = '//*[@id="pl_service_showcomplaint"]/table/tbody/tr[%s]/td[2]/div/a'
-reporter_xpath = '//*[@id="pl_service_showcomplaint"]/table/tbody/tr[%s]/td[3]/a'
+reportor_xpath = '//*[@id="pl_service_showcomplaint"]/table/tbody/tr[%s]/td[3]/a'
 reportee_xpath = '//*[@id="pl_service_showcomplaint"]/table/tbody/tr[%s]/td[4]/a'
 
 publish_content_xpath = '//*[@id="pl_service_common"]/div[4]/div[2]/div/div/div/div/p'
