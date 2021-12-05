@@ -3,7 +3,7 @@ import re
 import time as tm
 import pandas as pd
 import os.path
-from download import xpath
+from xpath import *
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -46,16 +46,16 @@ def save_or_load_cookie(driver, filename):
     if not os.path.isfile(filename):
         loginname = driver.find_element_by_id('loginname')
         password = driver.find_element_by_name('password')
-        login_button = driver.find_element_by_xpath(xpath.login_button_xpath)
+        login_button = driver.find_element_by_xpath(login_button_xpath)
         loginname.send_keys("15910526673")
         password.send_keys("520zbgpfdzj!")
         login_button.click()
 
-        element = wait_for_loaded(driver, time_to_delay, xpath.dm_check_xpath)
+        element = wait_for_loaded(driver, time_to_delay, dm_check_xpath)
         if element is not None:
             element.click()
 
-        driver.find_element_by_xpath(xpath.dm_send_button_xpath).click()
+        driver.find_element_by_xpath(dm_send_button_xpath).click()
         tm.sleep(time_to_delay)
         save_cookie(driver, cookie_filename)
     else:
@@ -80,23 +80,23 @@ def get_info(driver):
         return publish_time, original_text
     else:
         publish_content = driver.find_element_by_xpath(
-            xpath.publish_content_xpath).text
+            publish_content_xpath).text
         time_pattern = re.compile(r'\d+')
         date = ('-'.join(time_pattern.findall(publish_content)[0:3]))
         time = (':'.join(time_pattern.findall(publish_content)[3:6]))
         publish_time = date + " " + time
-        if check_exits_by_xpath(driver, xpath.publish_content_link_xpath):
+        if check_exits_by_xpath(driver, publish_content_link_xpath):
             original_link = driver.find_element_by_xpath(
-                xpath.publish_content_link_xpath).get_attribute('href')
+                publish_content_link_xpath).get_attribute('href')
             driver.get(original_link)
             original_element = wait_for_loaded(
-                driver, time_to_delay, xpath.original_text_xpath)
+                driver, time_to_delay, original_text_xpath)
             if original_element is not None:
                 original_text = original_element.text
             driver.back()
         else:
             original_text = driver.find_element_by_xpath(
-                xpath.publish_content_without_original_xpath).text
+                publish_content_without_original_xpath).text
         return original_text, publish_time
 
 
@@ -132,14 +132,14 @@ def crawling(driver, page_epoch):
             info_dict = dict()
             driver.implicitly_wait(3)
             reportor = wait_for_loaded(
-                driver, time_to_delay, (xpath.reportor_xpath % i))
+                driver, time_to_delay, (reportor_xpath % i))
             if reportor is not None:
                 info_dict['reportor'] = reportor.text
             info_dict['reportee'] = driver.find_element_by_xpath(
-                xpath.reportee_xpath %
+                reportee_xpath %
                 i).text
             info_link = driver.find_element_by_xpath(
-                xpath.info_link_xpath %
+                info_link_xpath %
                 i).get_attribute('href')
             driver.get(info_link)
             content, time = get_info(driver)
