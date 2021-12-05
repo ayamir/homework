@@ -13,11 +13,12 @@ from selenium.common.exceptions import NoSuchElementException
 
 cookie_filename = "cookie_dumped"
 weibo = "https://www.weibo.com"
-url = "https://service.account.weibo.com/index?type=5&status=4&page=1"
+url = "https://service.account.weibo.com/index?type=5&status=4&page=%s"
 
 time_to_wait = 5
 time_to_delay = 10
 page_num = 50
+page_epoch = 5
 
 
 def save_cookie(driver, filename):
@@ -119,12 +120,12 @@ def init_driver():
     return driver
 
 
-def crawling(driver):
+def crawling(driver, page_epoch):
     info_list = []
     cnt, page = 1, 1
+    driver.get(url % page)
     while True:
-        if page != 7:
-            page += 1
+        page += 1
         if page % 3 == 0:
             tm.sleep(time_to_wait)
         for i in range(2, 22):
@@ -145,12 +146,11 @@ def crawling(driver):
             info_dict['content'] = content
             info_dict['time'] = time
             info_list.append(info_dict)
-            driver.back()
-        driver.find_element_by_xpath(xpath.page_button_xpath % page).click()
+            driver.get(url % page)
         cnt += 1
-        if cnt % 50 == 0:
-            factor = cnt // 50
-            df = pd.DataFrame(info_list[50 * (factor - 1): 50 * factor])
+        if cnt % page_epoch == 0:
+            factor = cnt // page_epoch
+            df = pd.DataFrame(info_list)
             df.to_csv("page-%s.csv" % factor)
         if cnt == page_num:
             break
@@ -161,7 +161,6 @@ if __name__ == "__main__":
     driver = init_driver()
     save_or_load_cookie(driver, cookie_filename)
     driver.implicitly_wait(3)
-    driver.get(url)
-    info_list = crawling(driver)
+    info_list = crawling(driver, page_epoch)
     df = pd.DataFrame(info_list)
     df.to_csv("page.csv")
