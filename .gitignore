@@ -1,3 +1,5 @@
+assets
+cookie_dumped
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
