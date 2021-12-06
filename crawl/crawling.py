@@ -1,6 +1,7 @@
 import pickle
-import time as tm
-import os.path
+import time
+import os
+import pandas as pd
 from xpath import *
 from selenium import webdriver
 from bs4 import BeautifulSoup
@@ -9,7 +10,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
 
-mainhtml_filename = "../assets/main.html"
+STDOUT = 0
+FILEOUT = 1
+csv_path = "../assets/csv/"
+html_path = "../assets/html/"
+maincsv_filename = csv_path + "main.csv"
+mainhtml_filename = html_path + "main-%s.html"
 cookie_filename = "cookie_dumped"
 weibo = "https://www.weibo.com"
 base_url = "https://service.account.weibo.com"
@@ -43,7 +49,7 @@ def load_cookie(driver, filename):
 
 
 def save_or_load_cookie(driver, filename):
-    if not os.path.isfile(filename):
+    while not os.path.isfile(filename):
         loginname = driver.find_element_by_id('loginname')
         password = driver.find_element_by_name('password')
         login_button = driver.find_element_by_xpath(login_button_xpath)
@@ -56,7 +62,7 @@ def save_or_load_cookie(driver, filename):
             element.click()
 
         driver.find_element_by_xpath(dm_send_button_xpath).click()
-        tm.sleep(time_to_delay)
+        time.sleep(time_to_delay)
         save_cookie(driver, cookie_filename)
     else:
         load_cookie(driver, cookie_filename)
@@ -73,11 +79,11 @@ def wait_for_loaded(driver, delay, xpath):
         print("Time out after %s seconds when loading page" % delay)
 
 
-def download_main(driver):
-    driver.get(main_url)
-    with open(mainhtml_filename, "w") as f:
+def download_main(driver, num):
+    driver.get(main_url % num)
+    with open((mainhtml_filename % str(num)), "w") as f:
         f.write(driver.page_source)
-        print("Download main successfully!")
+        print("Download main-%s successfully!" % num)
 
 
 def init_driver():
@@ -120,55 +126,62 @@ def parser_judge_link(soup):
     return judge_link_list
 
 
-def process_main(mainfile):
-    with open(mainfile, "rb") as f:
-        event_list = []
-        html = f.read().decode("utf-8", "ignore")
-        soup = BeautifulSoup(html, "html.parser")
-        reportor_list, reportee_list = parse_person(soup)
-        judge_link_list = parser_judge_link(soup)
-        for i in range(20):
-            event_dict = {}
-            event_dict["reportor"] = reportor_list[i]
-            event_dict["reportee"] = reportee_list[i]
-            event_dict["judge_link"] = judge_link_list[i]
-            event_list.append(event_dict)
-        return event_list
+def process_main(num):
+    event_list = []
+    for i in range(num):
+        mainfile = mainhtml_filename % i
+        if os.path.isfile(mainfile):
+            with open(mainfile, "rb") as f:
+                html = f.read().decode("utf-8", "ignore")
+                soup = BeautifulSoup(html, "html.parser")
+                reportor_list, reportee_list = parse_person(soup)
+                judge_link_list = parser_judge_link(soup)
+                for i in range(20):
+                    event_dict = {}
+                    event_dict["reportor"] = reportor_list[i]
+                    event_dict["reportee"] = reportee_list[i]
+                    event_dict["judge_link"] = judge_link_list[i]
+                    event_list.append(event_dict)
+    return event_list
 
 
-def iter_person(list):
-    for element in list:
-        print("userhome: " + element["userhome"], end=", ")
-        print("username: " + element["username"])
-    print()
+def iter_event(list, out):
+    if out == STDOUT:
+        for element in list:
+            reportor = element["reportor"]
+            reportor_home = reportor["userhome"]
+            reportor_name = reportor["username"]
+            reportee = element["reportee"]
+            reportee_home = reportee["userhome"]
+            reportee_name = reportee["username"]
+            judge_link = element["judge_link"]
+            print("reportor_name: " + reportor_name, end=", ")
+            print("reportor_home: " + reportor_home, end=", ")
+            print("reportee_name: " + reportee_name, end=", ")
+            print("reportee_home: " + reportee_home, end=", ")
+            print("judge_link: " + judge_link)
+    else:
+        df = pd.DataFrame(list)
+        df.to_csv(maincsv_filename)
+        print("csv generated.")
+        if os.path.isfile(maincsv_filename):
+            for filename in os.listdir(html_path):
+                filepath = os.path.join(html_path, filename)
+                os.remove(filepath)
+            print("temp html cleaned.")
 
 
-def iter_event(list):
-    cnt = 0
-    for element in list:
-        cnt += 1
-        reportor = element["reportor"]
-        reportor_home = reportor["userhome"]
-        reportor_name = reportor["username"]
-        reportee = element["reportee"]
-        reportee_home = reportee["userhome"]
-        reportee_name = reportee["username"]
-        judge_link = element["judge_link"]
-        print("reportor_name: " + reportor_name, end=", ")
-        print("reportor_home: " + reportor_home, end=", ")
-        print("reportee_name: " + reportee_name, end=", ")
-        print("reportee_home: " + reportee_home, end=", ")
-        print("judge_link: " + judge_link)
-    print(cnt)
+def download_and_parse(num):
+    driver = init_driver()
+    save_or_load_cookie(driver, cookie_filename)
+    driver.implicitly_wait(3)
+    for i in range(num):
+        if not os.path.isfile(mainhtml_filename % i):
+            download_main(driver, i)
+    driver.quit()
+    event_list = process_main(num)
+    iter_event(event_list, FILEOUT)
 
 
 if __name__ == "__main__":
-    if not os.path.isfile(mainhtml_filename):
-        driver = init_driver()
-        save_or_load_cookie(driver, cookie_filename)
-        driver.implicitly_wait(3)
-        download_main(driver)
-        driver.quit()
-    else:
-        event_list = process_main(mainhtml_filename)
-        iter_event(event_list)
+    download_and_parse(250)
