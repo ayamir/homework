@@ -1,19 +1,19 @@
 import pickle
-import re
 import time as tm
-import pandas as pd
 import os.path
 from xpath import *
 from selenium import webdriver
+from bs4 import BeautifulSoup
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import TimeoutException
-from selenium.common.exceptions import NoSuchElementException
 
+mainhtml_filename = "../assets/main.html"
 cookie_filename = "cookie_dumped"
 weibo = "https://www.weibo.com"
-url = "https://service.account.weibo.com/index?type=5&status=4&page=%s"
+base_url = "https://service.account.weibo.com"
+main_url = base_url + "/index?type=5&status=4&page=%s"
 
 time_to_wait = 5
 time_to_delay = 10
@@ -73,39 +73,11 @@ def wait_for_loaded(driver, delay, xpath):
         print("Time out after %s seconds when loading page" % delay)
 
 
-def get_info(driver):
-    win_xpath = '//*[@id="pl_service_common"]/div[2]/div[1]/div/div[3]'
-    publish_time, original_text = "", ""
-    if not check_exits_by_xpath(driver, win_xpath):
-        return publish_time, original_text
-    else:
-        publish_content = driver.find_element_by_xpath(
-            publish_content_xpath).text
-        time_pattern = re.compile(r'\d+')
-        date = ('-'.join(time_pattern.findall(publish_content)[0:3]))
-        time = (':'.join(time_pattern.findall(publish_content)[3:6]))
-        publish_time = date + " " + time
-        if check_exits_by_xpath(driver, publish_content_link_xpath):
-            original_link = driver.find_element_by_xpath(
-                publish_content_link_xpath).get_attribute('href')
-            driver.get(original_link)
-            original_element = wait_for_loaded(
-                driver, time_to_delay, original_text_xpath)
-            if original_element is not None:
-                original_text = original_element.text
-            driver.back()
-        else:
-            original_text = driver.find_element_by_xpath(
-                publish_content_without_original_xpath).text
-        return original_text, publish_time
-
-
-def check_exits_by_xpath(driver, xpath):
-    try:
-        driver.find_element_by_xpath(xpath)
-    except NoSuchElementException:
-        return False
-    return True
+def download_main(driver):
+    driver.get(main_url)
+    with open(mainhtml_filename, "w") as f:
+        f.write(driver.page_source)
+        print("Download main successfully!")
 
 
 def init_driver():
@@ -120,47 +92,83 @@ def init_driver():
     return driver
 
 
-def crawling(driver, page_epoch):
-    info_list = []
-    cnt, page = 1, 1
-    driver.get(url % page)
-    while True:
-        page += 1
-        if page % 3 == 0:
-            tm.sleep(time_to_wait)
-        for i in range(2, 22):
-            info_dict = dict()
-            driver.implicitly_wait(3)
-            reportor = wait_for_loaded(
-                driver, time_to_delay, (reportor_xpath % i))
-            if reportor is not None:
-                info_dict['reportor'] = reportor.text
-            info_dict['reportee'] = driver.find_element_by_xpath(
-                reportee_xpath %
-                i).text
-            info_link = driver.find_element_by_xpath(
-                info_link_xpath %
-                i).get_attribute('href')
-            driver.get(info_link)
-            content, time = get_info(driver)
-            info_dict['content'] = content
-            info_dict['time'] = time
-            info_list.append(info_dict)
-            driver.get(url % page)
+def parse_person(soup):
+    reportor_list, reportee_list = [], []
+    cnt = 0
+    for a in soup.find_all("a"):
+        if a.parent.name == "td":
+            cnt += 1
+            if not cnt % 2 == 0:
+                reportor = {}
+                reportor["userhome"] = a["href"]
+                reportor["username"] = a.text
+                reportor_list.append(reportor)
+            else:
+                reportee = {}
+                reportee["userhome"] = a["href"]
+                reportee["username"] = a.text
+                reportee_list.append(reportee)
+    return reportor_list, reportee_list
+
+
+def parser_judge_link(soup):
+    judge_link_list = []
+    for a in soup.find_all("a"):
+        if a.parent.name == "div" and a.parent.parent.name == "td":
+            judge_link = base_url + a["href"]
+            judge_link_list.append(judge_link)
+    return judge_link_list
+
+
+def process_main(mainfile):
+    with open(mainfile, "rb") as f:
+        event_list = []
+        html = f.read().decode("utf-8", "ignore")
+        soup = BeautifulSoup(html, "html.parser")
+        reportor_list, reportee_list = parse_person(soup)
+        judge_link_list = parser_judge_link(soup)
+        for i in range(20):
+            event_dict = {}
+            event_dict["reportor"] = reportor_list[i]
+            event_dict["reportee"] = reportee_list[i]
+            event_dict["judge_link"] = judge_link_list[i]
+            event_list.append(event_dict)
+        return event_list
+
+
+def iter_person(list):
+    for element in list:
+        print("userhome: " + element["userhome"], end=", ")
+        print("username: " + element["username"])
+    print()
+
+
+def iter_event(list):
+    cnt = 0
+    for element in list:
         cnt += 1
-        if cnt % page_epoch == 0:
-            factor = cnt // page_epoch
-            df = pd.DataFrame(info_list)
-            df.to_csv("page-%s.csv" % factor)
-        if cnt == page_num:
-            break
-    return info_list
+        reportor = element["reportor"]
+        reportor_home = reportor["userhome"]
+        reportor_name = reportor["username"]
+        reportee = element["reportee"]
+        reportee_home = reportee["userhome"]
+        reportee_name = reportee["username"]
+        judge_link = element["judge_link"]
+        print("reportor_name: " + reportor_name, end=", ")
+        print("reportor_home: " + reportor_home, end=", ")
+        print("reportee_name: " + reportee_name, end=", ")
+        print("reportee_home: " + reportee_home, end=", ")
+        print("judge_link: " + judge_link)
+    print(cnt)
 
 
 if __name__ == "__main__":
-    driver = init_driver()
-    save_or_load_cookie(driver, cookie_filename)
-    driver.implicitly_wait(3)
-    info_list = crawling(driver, page_epoch)
-    df = pd.DataFrame(info_list)
-    df.to_csv("page.csv")
+    if not os.path.isfile(mainhtml_filename):
+        driver = init_driver()
+        save_or_load_cookie(driver, cookie_filename)
+        driver.implicitly_wait(3)
+        download_main(driver)
+        driver.quit()
+    else:
+        event_list = process_main(mainhtml_filename)
+        iter_event(event_list)
