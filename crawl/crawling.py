@@ -53,8 +53,10 @@ def save_or_load_cookie(driver, filename):
         loginname = driver.find_element_by_id('loginname')
         password = driver.find_element_by_name('password')
         login_button = driver.find_element_by_xpath(login_button_xpath)
-        loginname.send_keys("15910526673")
-        password.send_keys("520zbgpfdzj!")
+        username = input()
+        passwd = input()
+        loginname.send_keys(username)
+        password.send_keys(passwd)
         login_button.click()
 
         element = wait_for_loaded(driver, time_to_delay, dm_check_xpath)
